@@ -15,7 +15,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
       <div
         className="absolute inset-0 z-0 scale-105"
         style={{
-          backgroundImage: `url('public/background-image.jpg')`,
+          backgroundImage: `url('/background-image.jpg')`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
