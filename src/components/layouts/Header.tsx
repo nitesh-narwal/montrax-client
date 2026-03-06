@@ -37,7 +37,11 @@ export function Header({ onMenuClick, title }: HeaderProps) {
         <Link to="/profile">
           <Avatar className="w-8 h-8 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all">
             {user?.profileImageUrl && (
-              <AvatarImage src={user.profileImageUrl} alt={user.fullname || 'Profile'} />
+              <AvatarImage
+                src={user.profileImageUrl}
+                alt={user?.fullname || 'Profile'}
+                key={user.profileImageUrl}
+              />
             )}
             <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
               {initials}

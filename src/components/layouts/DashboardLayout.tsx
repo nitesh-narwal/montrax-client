@@ -3,6 +3,7 @@ import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useStore } from '@/store/useStore';
+import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import api from '@/lib/api';
 
 const pageTitles: Record<string, string> = {
@@ -21,32 +22,54 @@ const pageTitles: Record<string, string> = {
 
 export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { token, subscription, setSubscription } = useStore();
+  const [loading, setLoading] = useState(true);
+  const { token, subscription, setSubscription, setSubscriptionLoaded } = useStore();
   const location = useLocation();
 
-  // Fetch subscription data on mount if not already loaded
+  // Always fetch subscription data on mount to ensure it's current
   useEffect(() => {
     const fetchSubscription = async () => {
-      if (!token) return;
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
-      // Only fetch if subscription is not already loaded
-      if (!subscription) {
-        try {
-          const res = await api.get('/api/subscription/current');
-          if (res.data) {
-            setSubscription(res.data);
-          }
-        } catch (err) {
-          console.error('Failed to fetch subscription:', err);
+      try {
+        const res = await api.get('/api/subscription/current');
+        if (res.data) {
+          setSubscription(res.data);
+        } else {
+          // If no subscription found, set to null but mark as loaded
+          setSubscription(null);
         }
+      } catch (err) {
+        console.error('Failed to fetch subscription:', err);
+        // Set subscription to null and mark as loaded on error
+        setSubscription(null);
+      } finally {
+        setLoading(false);
       }
     };
 
+    // Always fetch fresh subscription data when dashboard loads
+    setLoading(true);
     fetchSubscription();
-  }, [token, subscription, setSubscription]);
+  }, [token, setSubscription, setSubscriptionLoaded]);
 
   if (!token) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Show loading while subscription is being fetched (only for premium-gated pages)
+  const premiumPages = ['/insights', '/bank-import'];
+  const isPremiumPage = premiumPages.includes(location.pathname);
+
+  if (isPremiumPage && loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
   }
 
   const title = pageTitles[location.pathname] || 'Dashboard';

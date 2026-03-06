@@ -22,7 +22,7 @@ interface DeletionStatus {
 }
 
 export default function ProfilePage() {
-  const { user, logout, setAuth } = useStore();
+  const { user, logout, updateUser } = useStore();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -77,10 +77,7 @@ export default function ProfilePage() {
       
       // Update user in store with new image URL
       if (user && res.data.profileImageUrl) {
-        const token = localStorage.getItem('token');
-        if (token) {
-          setAuth(token, { ...user, profileImageUrl: res.data.profileImageUrl });
-        }
+        updateUser({ ...user, profileImageUrl: res.data.profileImageUrl });
       }
       toast.success('Profile image updated!');
     } catch (err: any) {

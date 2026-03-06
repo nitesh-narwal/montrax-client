@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ArrowUpRight, ArrowDownRight, Wallet, TrendingUp, Plus } from 'lucide-react';
 import { StatCard } from '@/components/shared/StatCard';
 import { TransactionCard } from '@/components/shared/TransactionCard';
@@ -33,35 +34,45 @@ export default function DashboardPage() {
   const [budgets, setBudgets] = useState<BudgetGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const location = useLocation();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    console.log('=== Dashboard Loading ===' );
-    console.log('Token present:', !!token);
-    console.log('Token value:', token?.substring(0, 20) + '...');
-    
-    Promise.all([
-      api.get('/dashboard').catch((err) => {
-        console.error('Dashboard API error:', err.response?.status, err.response?.data || err.message);
-        setError(`Dashboard: ${err.response?.status} - ${err.response?.data?.message || err.message}`);
-        return null;
-      }),
-      api.get('/api/budgets').catch((err) => {
-        console.error('Budgets API error:', err.response?.status, err.response?.data || err.message);
-        return null;
-      }),
-    ]).then(([dashRes, budgetRes]) => {
-      console.log('Dashboard response:', dashRes?.data);
-      console.log('Budgets response:', budgetRes?.data);
-      if (dashRes) setData(dashRes.data);
-      if (budgetRes) setBudgets(budgetRes.data || []);
-    }).catch((err) => {
-      console.error('Promise.all error:', err);
-      setError(err.message);
-      toast.error('Failed to load dashboard');
-    })
-      .finally(() => setLoading(false));
-  }, []);
+    const fetchDashboardData = async () => {
+      setLoading(true);
+      setError(null);
+
+      const token = localStorage.getItem('token');
+      console.log('=== Dashboard Loading ===' );
+      console.log('Token present:', !!token);
+
+      try {
+        const [dashRes, budgetRes] = await Promise.all([
+          api.get('/dashboard').catch((err) => {
+            console.error('Dashboard API error:', err.response?.status, err.response?.data || err.message);
+            setError(`Dashboard: ${err.response?.status} - ${err.response?.data?.message || err.message}`);
+            return null;
+          }),
+          api.get('/api/budgets').catch((err) => {
+            console.error('Budgets API error:', err.response?.status, err.response?.data || err.message);
+            return null;
+          }),
+        ]);
+
+        console.log('Dashboard response:', dashRes?.data);
+        console.log('Budgets response:', budgetRes?.data);
+        if (dashRes) setData(dashRes.data);
+        if (budgetRes) setBudgets(budgetRes.data || []);
+      } catch (err: any) {
+        console.error('Promise.all error:', err);
+        setError(err.message);
+        toast.error('Failed to load dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [location.key]); // Refetch when location changes (navigating back to dashboard)
 
   if (loading) return <LoadingSpinner />;
 

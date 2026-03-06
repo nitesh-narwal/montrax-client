@@ -6,9 +6,12 @@ interface AppState {
   token: string | null;
   user: User | null;
   subscription: Subscription | null;
+  subscriptionLoaded: boolean;
   setAuth: (token: string, user: User) => void;
+  updateUser: (user: User) => void;
   logout: () => void;
   setSubscription: (sub: Subscription | null) => void;
+  setSubscriptionLoaded: (loaded: boolean) => void;
   isPremiumFeatureAllowed: (feature: string) => boolean;
 }
 
@@ -18,15 +21,20 @@ export const useStore = create<AppState>()(
       token: null,
       user: null,
       subscription: null,
+      subscriptionLoaded: false,
       setAuth: (token, user) => {
         localStorage.setItem('token', token);
         set({ token, user });
       },
+      updateUser: (user) => {
+        set({ user });
+      },
       logout: () => {
         localStorage.removeItem('token');
-        set({ token: null, user: null, subscription: null });
+        set({ token: null, user: null, subscription: null, subscriptionLoaded: false });
       },
-      setSubscription: (subscription) => set({ subscription }),
+      setSubscription: (subscription) => set({ subscription, subscriptionLoaded: true }),
+      setSubscriptionLoaded: (loaded) => set({ subscriptionLoaded: loaded }),
       isPremiumFeatureAllowed: (feature) => {
         const sub = get().subscription;
         if (!sub) return false;
@@ -41,7 +49,7 @@ export const useStore = create<AppState>()(
       partialize: (state) => ({
         token: state.token,
         user: state.user,
-        subscription: state.subscription  // Now persist subscription too
+        // Don't persist subscription - always fetch fresh data
       }),
     }
   )

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -99,10 +99,10 @@ const HealthScoreRing = ({ score }: { score: number }) => {
   );
 };
 
-// Locked overlay component for premium features
-const LockedOverlay = ({ children, canUseAI }: { children: React.ReactNode; canUseAI: boolean }) => (
+// Locked overlay component for premium features - defined outside component to prevent re-renders
+const LockedOverlay = React.memo(({ children, isLocked }: { children: React.ReactNode; isLocked: boolean }) => (
   <div className="relative">
-    {!canUseAI && (
+    {isLocked && (
       <div className="absolute inset-0 z-10 bg-card/80 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center">
         <Lock className="w-8 h-8 text-muted-foreground mb-2" />
         <p className="text-sm font-semibold text-foreground">Upgrade to unlock</p>
@@ -111,12 +111,13 @@ const LockedOverlay = ({ children, canUseAI }: { children: React.ReactNode; canU
     )}
     {children}
   </div>
-);
+));
 
 export default function InsightsPage() {
   const { isPremiumFeatureAllowed } = useStore();
   const [summary, setSummary] = useState<SpendingSummary | null>(null);
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
+  const [predictions, setPredictions] = useState<any>(null);
   const [tips, setTips] = useState<AiTips | null>(null);
   const [health, setHealth] = useState<FinancialHealth | null>(null);
   const [remaining, setRemaining] = useState<RemainingQueries | null>(null);
@@ -291,7 +292,7 @@ export default function InsightsPage() {
             </div>
             <div className="mt-4 flex items-center gap-3">
               <Badge
-                variant={summary.trend === 'DOWN' ? 'default' : summary.trend === 'UP' ? 'destructive' : 'secondary' as const}
+                variant={summary.trend === 'DOWN' ? 'default' : summary.trend === 'UP' ? 'destructive' : 'secondary' as 'default' | 'destructive' | 'secondary'}
                 className="gap-1"
               >
                 {summary.trend === 'DOWN' ? <TrendingDown className="w-3 h-3" /> :
@@ -308,7 +309,7 @@ export default function InsightsPage() {
       )}
 
       {/* Financial Health - Improved */}
-      <LockedOverlay canUseAI={canUseAI}>
+      <LockedOverlay isLocked={!canUseAI}>
         <Card className="overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="font-display flex items-center gap-2">
@@ -412,7 +413,7 @@ export default function InsightsPage() {
       </LockedOverlay>
 
       {/* AI Tips - Improved with cards */}
-      <LockedOverlay canUseAI={canUseAI}>
+      <LockedOverlay isLocked={!canUseAI}>
         <Card>
           <CardHeader>
             <CardTitle className="font-display flex items-center gap-2">
@@ -465,7 +466,7 @@ export default function InsightsPage() {
       </LockedOverlay>
 
       {/* Anomalies */}
-      <LockedOverlay canUseAI={canUseAI}>
+      <LockedOverlay isLocked={!canUseAI}>
         <Card>
           <CardHeader>
             <CardTitle className="font-display flex items-center gap-2">
@@ -495,7 +496,7 @@ export default function InsightsPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-bold text-expense">{formatCurrency(a.amount)}</p>
-                      <Badge variant={a.severity === 'HIGH' ? 'destructive' : 'secondary' as const} className="text-xs">
+                      <Badge variant={a.severity === 'HIGH' ? 'destructive' : 'secondary' as 'destructive' | 'secondary'} className="text-xs">
                         {a.percentageAboveAverage}% above avg
                       </Badge>
                     </div>
@@ -514,7 +515,7 @@ export default function InsightsPage() {
       </LockedOverlay>
 
       {/* Ask AI */}
-      <LockedOverlay canUseAI={canUseAI}>
+      <LockedOverlay isLocked={!canUseAI}>
         <Card className="border-primary/20">
           <CardHeader>
             <div className="flex items-center justify-between">
