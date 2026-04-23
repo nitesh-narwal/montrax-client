@@ -54,9 +54,23 @@ export default function LandingPage() {
             </header>
 
             {/* Hero */}
-            <section className="relative py-20 md:py-32 px-4 overflow-hidden">
-                <div className="absolute inset-0 gradient-balance opacity-5" />
-                <div className="max-w-4xl mx-auto text-center relative">
+                <section className="relative py-20 md:py-32 px-4 overflow-hidden">
+                    {/* Background Image Layer */}
+                    <div
+                        className="absolute inset-0 z-0 scale-105"
+                        style={{
+                            backgroundImage: `url('/background-image.jpg')`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                            backgroundRepeat: 'no-repeat',
+                            filter: 'blur(8px)',
+                        }}
+                    />
+                    
+                    {/* Dark Overlay - makes text readable */}
+                    <div className="absolute inset-0 z-[1] bg-gradient-to-br from-background/85 via-background/80 to-primary/30" />
+                    
+                    <div className="max-w-4xl mx-auto text-center relative z-10">
                     <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
                         <Zap className="w-4 h-4" />
                         AI-Powered Finance Tracking

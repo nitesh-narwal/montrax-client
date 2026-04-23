@@ -129,6 +129,14 @@ export default function InsightsPage() {
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+    // add near other useState hooks
+    type InsightPriority = 'HIGH' | 'MEDIUM' | 'LOW' | '';
+    type InsightType = 'SPENDING_ANALYSIS' | 'SAVINGS_STRATEGY' | 'FINANCIAL_HEALTH' | '';
+
+    const [insights, setInsights] = useState<any[]>([]);
+    const [selectedPriority, setSelectedPriority] = useState<InsightPriority>('');
+    const [selectedType, setSelectedType] = useState<InsightType>('');
+
   const canUseAI = isPremiumFeatureAllowed('ai-basic');
 
   useEffect(() => {
@@ -172,6 +180,19 @@ export default function InsightsPage() {
     }
   };
 
+    const fetchAiInsights = async (priority?: InsightPriority, type?: InsightType) => {
+        if (!canUseAI) return;
+
+        const res = await api.get('/api/ai/insights', {
+            params: {
+                priority: priority || undefined,
+                type: type || undefined,
+            },
+        });
+
+        setInsights(res.data || []);
+    };
+
   useEffect(() => {
     const promises = [
       api.get('/api/insights/summary').catch(() => null),
@@ -192,8 +213,15 @@ export default function InsightsPage() {
       if (anomRes) setAnomalies(anomRes.data || []);
       if (tipRes) setTips(tipRes.data);
       if (healthRes) setHealth(healthRes.data);
+        if (canUseAI) {
+            fetchAiInsights(selectedPriority, selectedType).catch(() => null);
+        }
     }).finally(() => setLoading(false));
   }, [canUseAI]);
+
+    useEffect(() => {
+        fetchAiInsights(selectedPriority, selectedType).catch(() => null);
+    }, [canUseAI, selectedPriority, selectedType]);
 
   const askAI = async () => {
     if (!question.trim() || cooldownSeconds > 0) return;
