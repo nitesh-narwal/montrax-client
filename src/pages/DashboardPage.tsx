@@ -45,10 +45,6 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
 
-      const token = localStorage.getItem('token');
-      console.log('=== Dashboard Loading ===' );
-      console.log('Token present:', !!token);
-
       try {
         const [dashRes, budgetRes, recurringRes] = await Promise.all([
           api.get('/dashboard').catch((err) => {
@@ -63,8 +59,6 @@ export default function DashboardPage() {
           api.get('/api/recurring').catch(() => null),
         ]);
 
-        console.log('Dashboard response:', dashRes?.data);
-        console.log('Budgets response:', budgetRes?.data);
         if (dashRes) setData(dashRes.data);
         if (budgetRes) setBudgets(budgetRes.data || []);
         if (recurringRes) setRecurring(recurringRes.data || []);
