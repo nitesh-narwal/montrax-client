@@ -1,4 +1,4 @@
-import { Trash2 } from 'lucide-react';
+import { Trash2, Paperclip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -10,17 +10,25 @@ interface TransactionCardProps {
   amount: number;
   date: string;
   type: 'EXPENSE' | 'INCOME';
+  attachmentUrl?: string | null;
   onDelete?: () => void;
 }
 
-export function TransactionCard({ icon, name, category, amount, date, type, onDelete }: TransactionCardProps) {
+export function TransactionCard({ icon, name, category, amount, date, type, attachmentUrl, onDelete }: TransactionCardProps) {
   return (
     <div className="flex items-center justify-between py-3 px-4 rounded-lg hover:bg-muted/50 transition-colors group">
       <div className="flex items-center gap-3">
         <span className="text-2xl">{icon || '💰'}</span>
         <div>
           <p className="text-sm font-semibold text-foreground">{name}</p>
-          <p className="text-xs text-muted-foreground">{category} · {formatDate(date)}</p>
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            {category} · {formatDate(date)}
+            {attachmentUrl && (
+              <a href={attachmentUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title="View receipt">
+                <Paperclip className="w-3 h-3 text-primary" />
+              </a>
+            )}
+          </p>
         </div>
       </div>
       <div className="flex items-center gap-2">

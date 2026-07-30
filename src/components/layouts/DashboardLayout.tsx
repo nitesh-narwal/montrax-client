@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useStore } from '@/store/useStore';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
+import { CommandPalette } from '@/components/shared/CommandPalette';
 import api from '@/lib/api';
 
 const pageTitles: Record<string, string> = {
@@ -12,19 +13,33 @@ const pageTitles: Record<string, string> = {
   '/incomes': 'Incomes',
   '/categories': 'Categories',
   '/budgets': 'Budget Goals',
+  '/savings-goals': 'Savings Goals',
   '/recurring': 'Recurring',
   '/analytics': 'Analytics',
   '/insights': 'AI Insights',
   '/bank-import': 'Bank Import',
   '/subscription': 'Subscription',
   '/profile': 'Profile',
+  '/admin': 'Admin',
 };
 
 export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const { token, subscription, setSubscription, setSubscriptionLoaded } = useStore();
   const location = useLocation();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((prev) => !prev);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Always fetch subscription data on mount to ensure it's current
   useEffect(() => {
@@ -78,11 +93,12 @@ export function DashboardLayout() {
     <div className="min-h-screen bg-background">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="md:ml-64">
-        <Header onMenuClick={() => setSidebarOpen(true)} title={title} />
+        <Header onMenuClick={() => setSidebarOpen(true)} title={title} onSearchClick={() => setPaletteOpen(true)} />
         <main className="p-4 md:p-6 animate-fade-in">
           <Outlet />
         </main>
       </div>
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
   );
 }

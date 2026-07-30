@@ -1,19 +1,24 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { IndianRupee, Eye, EyeOff, Loader2, CheckCircle } from 'lucide-react';
-import api from '@/lib/api';
+import { IndianRupee, Eye, EyeOff, Loader2, Phone } from 'lucide-react';
+import api, { API_BASE_URL } from '@/lib/api';
 import { toast } from 'sonner';
 import AuthLayout from '@/components/layouts/AuthLayout';
+import { getErrorMessage } from '@/lib/utils';
+import { GoogleSignInButton } from '@/components/shared/GoogleSignInButton';
 
 const schema = z.object({
   fullname: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Enter a valid email'),
+  phoneNumber: z
+    .string()
+    .regex(/^\+[1-9]\d{7,14}$/, 'Use international format, e.g. +919876543210'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -26,7 +31,7 @@ type FormData = z.infer<typeof schema>;
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const navigate = useNavigate();
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -39,31 +44,16 @@ export default function RegisterPage() {
         fullname: data.fullname,
         email: data.email,
         password: data.password,
+        phoneNumber: data.phoneNumber,
       });
-      setSuccess(true);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Registration failed');
+      toast.success('Account created! Verify your phone to continue.');
+      navigate('/verify-otp', { state: { phoneNumber: data.phoneNumber } });
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Registration failed'));
     } finally {
       setLoading(false);
     }
   };
-
-  if (success) {
-    return (
-      <AuthLayout>
-        <div className="text-center bg-card/95 backdrop-blur-md rounded-xl p-8 border border-border shadow-xl">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-income/10 mb-4">
-            <CheckCircle className="w-8 h-8 text-income" />
-          </div>
-          <h1 className="text-2xl font-display font-bold text-foreground mb-2">Check your email!</h1>
-          <p className="text-muted-foreground mb-6">We've sent an activation link to your email address. Click the link to activate your account.</p>
-          <Link to="/login">
-            <Button>Go to Login</Button>
-          </Link>
-        </div>
-      </AuthLayout>
-    );
-  }
 
   return (
     <AuthLayout>
@@ -85,6 +75,24 @@ export default function RegisterPage() {
           <Label htmlFor="email">Email</Label>
           <Input id="email" type="email" placeholder="you@example.com" {...register('email')} className="bg-background/80" />
           {errors.email && <p className="text-xs text-expense mt-1">{errors.email.message}</p>}
+        </div>
+        <div>
+          <Label htmlFor="phoneNumber">Phone Number</Label>
+          <div className="relative">
+            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              id="phoneNumber"
+              type="tel"
+              placeholder="+919876543210"
+              {...register('phoneNumber')}
+              className="bg-background/80 pl-9"
+            />
+          </div>
+          {errors.phoneNumber ? (
+            <p className="text-xs text-expense mt-1">{errors.phoneNumber.message}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-1">We'll text you a 6-digit code to verify it.</p>
+          )}
         </div>
         <div>
           <Label htmlFor="password">Password</Label>
@@ -121,6 +129,14 @@ export default function RegisterPage() {
           {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
           Create Account
         </Button>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+          </div>
+        </div>
+        <GoogleSignInButton apiBaseUrl={API_BASE_URL} />
       </form>
 
       <p className="text-center text-sm text-muted-foreground mt-4 bg-card/80 backdrop-blur-sm rounded-lg py-2">

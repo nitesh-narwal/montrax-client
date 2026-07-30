@@ -11,6 +11,7 @@ import api from '@/lib/api';
 import { toast } from 'sonner';
 import AuthLayout from '@/components/layouts/AuthLayout';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
+import { getErrorMessage } from '@/lib/utils';
 
 const schema = z.object({
   newPassword: z.string().min(8, 'Password must be at least 8 characters'),
@@ -68,8 +69,8 @@ export default function ResetPasswordPage() {
       });
       setResetSuccess(true);
       toast.success('Password reset successfully!');
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to reset password');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to reset password'));
     } finally {
       setLoading(false);
     }

@@ -8,11 +8,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { LogOut, Mail, Calendar, Camera, Trash2, Loader2, AlertTriangle, XCircle } from 'lucide-react';
+import { LogOut, Mail, Calendar, Camera, Trash2, Loader2, AlertTriangle, XCircle, Phone, ShieldCheck, Shield, BellRing } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate } from '@/lib/constants';
 import api from '@/lib/api';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/utils';
 
 interface DeletionStatus {
   isPendingDeletion: boolean;
@@ -30,6 +31,8 @@ export default function ProfilePage() {
   const [deleting, setDeleting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [deletionStatus, setDeletionStatus] = useState<DeletionStatus | null>(null);
+  const [notificationTime, setNotificationTime] = useState(user?.notificationTime ? user.notificationTime.slice(0, 5) : '');
+  const [savingTime, setSavingTime] = useState(false);
 
   const initials = user?.fullname?.split(' ').map((n) => n[0]).join('').toUpperCase() || '?';
 
@@ -80,9 +83,9 @@ export default function ProfilePage() {
         updateUser({ ...user, profileImageUrl: res.data.profileImageUrl });
       }
       toast.success('Profile image updated!');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Image upload error:', err);
-      toast.error(err.response?.data?.message || 'Failed to upload image');
+      toast.error(getErrorMessage(err, 'Failed to upload image'));
     } finally {
       setUploading(false);
     }
@@ -103,9 +106,9 @@ export default function ProfilePage() {
       } else {
         toast.error(res.data.message || 'Failed to request deletion');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Delete account error:', err);
-      toast.error(err.response?.data?.message || 'Failed to request deletion');
+      toast.error(getErrorMessage(err, 'Failed to request deletion'));
     } finally {
       setDeleting(false);
       setDeleteDialogOpen(false);
@@ -122,11 +125,26 @@ export default function ProfilePage() {
       } else {
         toast.error(res.data.message || 'Failed to cancel deletion');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Cancel deletion error:', err);
-      toast.error(err.response?.data?.message || 'Failed to cancel deletion');
+      toast.error(getErrorMessage(err, 'Failed to cancel deletion'));
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleSaveNotificationTime = async () => {
+    setSavingTime(true);
+    try {
+      const res = await api.put('/profile/notification-time', { time: notificationTime || null });
+      if (user) {
+        updateUser({ ...user, notificationTime: res.data.notificationTime });
+      }
+      toast.success(notificationTime ? 'Notification time saved!' : 'Reset to default times');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to save notification time'));
+    } finally {
+      setSavingTime(false);
     }
   };
 
@@ -190,9 +208,17 @@ export default function ProfilePage() {
             />
           </div>
           <h3 className="text-xl font-display font-bold text-foreground">{user?.fullname || 'User'}</h3>
-          {deletionStatus?.isPendingDeletion && (
-            <Badge variant="destructive" className="mt-2">Pending Deletion</Badge>
-          )}
+          <div className="flex items-center justify-center gap-1.5 mt-2 flex-wrap">
+            {user?.role === 'ADMIN' && (
+              <Badge variant="secondary" className="gap-1"><Shield className="w-3 h-3" />Admin</Badge>
+            )}
+            {user?.authProvider === 'GOOGLE' && (
+              <Badge variant="outline">Signed in with Google</Badge>
+            )}
+            {deletionStatus?.isPendingDeletion && (
+              <Badge variant="destructive">Pending Deletion</Badge>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -206,6 +232,21 @@ export default function ProfilePage() {
               <p className="text-sm font-medium text-foreground">{user?.email || 'N/A'}</p>
             </div>
           </div>
+          {user?.phoneNumber && (
+            <>
+              <Separator />
+              <div className="flex items-center gap-3">
+                <Phone className="w-5 h-5 text-muted-foreground" />
+                <div className="flex-1">
+                  <p className="text-xs text-muted-foreground">Phone Number</p>
+                  <p className="text-sm font-medium text-foreground">{user.phoneNumber}</p>
+                </div>
+                {user.isPhoneVerified && (
+                  <Badge variant="outline" className="gap-1 text-income border-income/30"><ShieldCheck className="w-3 h-3" />Verified</Badge>
+                )}
+              </div>
+            </>
+          )}
           <Separator />
           <div className="flex items-center gap-3">
             <Calendar className="w-5 h-5 text-muted-foreground" />
@@ -214,6 +255,32 @@ export default function ProfilePage() {
               <p className="text-sm font-medium text-foreground">{user?.createdAt ? formatDate(user.createdAt) : 'N/A'}</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="font-display flex items-center gap-2"><BellRing className="w-5 h-5" /> Notification Time</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Choose when you'd like to receive budget alert and bill reminder emails.
+            Leave blank to use the defaults (bill reminders 9:00 AM, budget alerts 9:00 PM).
+          </p>
+          <div className="flex items-center gap-2">
+            <Input
+              type="time"
+              value={notificationTime}
+              onChange={(e) => setNotificationTime(e.target.value)}
+              className="flex-1"
+            />
+            <Button onClick={handleSaveNotificationTime} disabled={savingTime}>
+              {savingTime ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
+            </Button>
+          </div>
+          {notificationTime && (
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { setNotificationTime(''); }}>
+              Clear (use defaults)
+            </Button>
+          )}
         </CardContent>
       </Card>
 

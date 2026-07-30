@@ -4,17 +4,38 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Check, Crown, Loader2, Trash2, AlertTriangle } from 'lucide-react';
+import { Check, Crown, Loader2, Trash2, AlertTriangle, Database } from 'lucide-react';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { formatCurrency, formatDate } from '@/lib/constants';
 import { useStore } from '@/store/useStore';
-import api from '@/lib/api';
-import type { SubscriptionPlan, Subscription, PaymentHistory } from '@/types';
+import api, { generateIdempotencyKey } from '@/lib/api';
+import type { SubscriptionPlan, Subscription, PaymentHistory, DataRetentionInfo } from '@/types';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, getErrorMessage } from '@/lib/utils';
+
+interface RazorpayPaymentResponse {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
+interface RazorpayOptions {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  order_id: string;
+  handler: (response: RazorpayPaymentResponse) => void;
+  modal: { ondismiss: () => void };
+  prefill: { email: string };
+  theme: { color: string };
+}
 
 declare global {
-  interface Window { Razorpay: any; }
+  interface Window {
+    Razorpay: new (options: RazorpayOptions) => { open: () => void };
+  }
 }
 
 export default function SubscriptionPage() {
@@ -22,6 +43,7 @@ export default function SubscriptionPage() {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [current, setCurrent] = useState<Subscription | null>(null);
   const [history, setHistory] = useState<PaymentHistory[]>([]);
+  const [retention, setRetention] = useState<DataRetentionInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [yearly, setYearly] = useState(false);
   const [upgrading, setUpgrading] = useState('');
@@ -31,15 +53,17 @@ export default function SubscriptionPage() {
 
   const loadData = async () => {
     try {
-      const [planRes, curRes, histRes] = await Promise.all([
+      const [planRes, curRes, histRes, retRes] = await Promise.all([
         api.get('/api/subscription/plans').catch(() => ({ data: [] })),
         api.get('/api/subscription/current').catch(() => ({ data: null })),
         api.get('/api/payments/history').catch(() => ({ data: [] })),
+        api.get('/api/subscription/data-retention').catch(() => ({ data: null })),
       ]);
       setPlans(planRes.data || []);
       setCurrent(curRes.data);
       if (curRes.data) setSubscription(curRes.data);
       setHistory(histRes.data || []);
+      setRetention(retRes.data);
     } catch (err) {
       console.error('Failed to load data:', err);
     }
@@ -51,10 +75,15 @@ export default function SubscriptionPage() {
 
   const handleUpgrade = async (planName: string) => {
     setUpgrading(planName);
+    // One key per upgrade attempt — reused if Razorpay retries the same submission,
+    // so a double-click or flaky network can't create two orders.
+    const idempotencyKey = generateIdempotencyKey();
     try {
       const res = await api.post('/api/payments/create-order', {
         planName,
         billingCycle: yearly ? 'YEARLY' : 'MONTHLY',
+      }, {
+        headers: { 'X-Idempotency-Key': idempotencyKey },
       });
       const order = res.data;
 
@@ -65,7 +94,7 @@ export default function SubscriptionPage() {
         name: 'Montrax',
         description: `${order.planName} - ${order.billingCycle}`,
         order_id: order.orderId,
-        handler: async (response: any) => {
+        handler: async (response) => {
           try {
             await api.post('/api/payments/verify', {
               razorpayOrderId: response.razorpay_order_id,
@@ -75,8 +104,8 @@ export default function SubscriptionPage() {
             toast.success('Payment successful! Subscription activated.');
             // Reload all data
             await loadData();
-          } catch (err: any) {
-            toast.error(err.response?.data?.message || 'Payment verification failed. Please contact support.');
+          } catch (err) {
+            toast.error(getErrorMessage(err, 'Payment verification failed. Please contact support.'));
             // Reload history to show failed status
             await loadData();
           }
@@ -100,7 +129,7 @@ export default function SubscriptionPage() {
       } else {
         toast.error('Razorpay not loaded. Please refresh and try again.');
       }
-    } catch (err: any) { toast.error(err.response?.data?.message || 'Failed to create order'); }
+    } catch (err) { toast.error(getErrorMessage(err, 'Failed to create order')); }
     finally { setUpgrading(''); }
   };
 
@@ -122,8 +151,8 @@ export default function SubscriptionPage() {
       } else {
         toast.error(res.data.message || 'Cannot delete this payment');
       }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to delete payment record');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to delete payment record'));
     } finally {
       setDeletingPayment(null);
     }
@@ -137,8 +166,8 @@ export default function SubscriptionPage() {
         toast.success(`Cleared ${res.data.deletedCount} payment record(s)`);
         setHistory([]);
       }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to clear payment history');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to clear payment history'));
     } finally {
       setClearingAll(false);
       setClearAllDialogOpen(false);
@@ -175,6 +204,32 @@ export default function SubscriptionPage() {
               </div>
               {current.planType !== 'FREE' && (
                 <Button variant="outline" size="sm" onClick={handleCancel}>Cancel</Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {retention && (
+        <Card>
+          <CardContent className="p-4 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <Database className="w-4 h-4 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-semibold text-foreground">
+                  {retention.isUnlimited ? 'Unlimited data retention' : `${retention.retentionMonths}-month data retention`}
+                </p>
+                {!retention.isUnlimited && retention.recordsToBeDeleted > 0 && (
+                  <Badge variant="outline" className="text-xs text-warning border-warning/30">
+                    {retention.recordsToBeDeleted} records at risk
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">{retention.message}</p>
+              {!retention.isUnlimited && retention.nextCleanupCutoffDate && (
+                <p className="text-xs text-muted-foreground">Next cleanup cutoff: {formatDate(retention.nextCleanupCutoffDate)}</p>
               )}
             </div>
           </CardContent>

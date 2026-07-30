@@ -33,7 +33,7 @@ export default function ForgotPasswordPage() {
       setSubmittedEmail(data.email);
       setEmailSent(true);
       toast.success('Password reset email sent!');
-    } catch (err: any) {
+    } catch {
       // Even on error, show success message to prevent email enumeration
       setSubmittedEmail(data.email);
       setEmailSent(true);

@@ -3,17 +3,71 @@ import { Plus, Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TransactionCard } from '@/components/shared/TransactionCard';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { IconPicker } from '@/components/shared/IconPicker';
+import { ReceiptUpload } from '@/components/shared/ReceiptUpload';
+import { PageControls } from '@/components/shared/PageControls';
+import { TransactionFilterBar } from '@/components/shared/TransactionFilterBar';
+import { useTransactionSearch } from '@/hooks/useTransactionSearch';
+import { useOpenOnQueryParam } from '@/hooks/useOpenOnQueryParam';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/constants';
 import type { Expense, Category } from '@/types';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/utils';
+
+function AllExpensesTab({ onDelete }: { onDelete: (id: number) => void }) {
+  const { setPage, filters, setFilters, isFiltered, data, loading } = useTransactionSearch<Expense>('expence');
+
+  return (
+    <div className="space-y-4">
+      <TransactionFilterBar filters={filters} onChange={setFilters} />
+      {loading ? <LoadingSpinner /> : (
+        <>
+          <Card>
+            <CardContent className="p-2">
+              {data && data.content.length > 0 ? (
+                data.content.map((e) => (
+                  <TransactionCard
+                    key={e.id}
+                    icon={e.icon}
+                    name={e.name}
+                    category={e.categoryName}
+                    amount={e.amount}
+                    date={e.date}
+                    type="EXPENSE"
+                    attachmentUrl={e.attachmentUrl}
+                    onDelete={() => onDelete(e.id)}
+                  />
+                ))
+              ) : (
+                <EmptyState
+                  title="No expenses found"
+                  description={isFiltered ? 'Try adjusting your filters.' : 'Nothing here yet.'}
+                />
+              )}
+            </CardContent>
+          </Card>
+          {data && (
+            <PageControls
+              currentPage={data.currentPage}
+              totalPages={data.totalPages}
+              hasNext={data.hasNext}
+              hasPrevious={data.hasPrevious}
+              onPageChange={setPage}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -22,27 +76,20 @@ export default function ExpensesPage() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [allTabKey, setAllTabKey] = useState(0);
 
-  const [form, setForm] = useState({ name: '', amount: '', categoryId: '', icon: '🛒', date: new Date().toISOString().split('T')[0] });
+  const [form, setForm] = useState<{ name: string; amount: string; categoryId: string; icon: string; date: string; attachmentUrl: string | null }>({ name: '', amount: '', categoryId: '', icon: '🛒', date: new Date().toISOString().split('T')[0], attachmentUrl: null });
+
+  useOpenOnQueryParam(() => setOpen(true));
 
   const fetchData = async () => {
-    console.log('=== Fetching Expenses & Categories ===');
     try {
       const [expRes, catRes] = await Promise.all([
-        api.get('/expences').catch((err) => {
-          console.error('Expenses error:', err.response?.status, err.response?.data);
-          return { data: [] };
-        }),
-        api.get('/categories').catch((err) => {
-          console.error('Categories error:', err.response?.status, err.response?.data);
-          return { data: [] };
-        }),
+        api.get('/expences').catch(() => ({ data: [] })),
+        api.get('/categories').catch(() => ({ data: [] })),
       ]);
-      console.log('Expenses response:', expRes.data);
-      console.log('Categories response:', catRes.data);
       setExpenses(expRes.data || []);
       const expenseCategories = (catRes.data || []).filter((c: Category) => c.type === 'EXPENSE');
-      console.log('Filtered expense categories:', expenseCategories);
       setCategories(expenseCategories);
     } catch (err) {
       console.error('FetchData error:', err);
@@ -67,13 +114,15 @@ export default function ExpensesPage() {
         categoryId: parseInt(form.categoryId),
         icon: form.icon,
         date: form.date,
+        attachmentUrl: form.attachmentUrl,
       });
       toast.success('Expense added!');
       setOpen(false);
-      setForm({ name: '', amount: '', categoryId: '', icon: '🛒', date: new Date().toISOString().split('T')[0] });
+      setForm({ name: '', amount: '', categoryId: '', icon: '🛒', date: new Date().toISOString().split('T')[0], attachmentUrl: null });
       fetchData();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to add expense');
+      setAllTabKey((k) => k + 1); // force "All Transactions" tab to refetch page 0
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to add expense'));
     } finally {
       setSaving(false);
     }
@@ -84,6 +133,7 @@ export default function ExpensesPage() {
       await api.delete(`/expences/${id}`);
       toast.success('Expense deleted');
       setExpenses((prev) => prev.filter((e) => e.id !== id));
+      setAllTabKey((k) => k + 1);
     } catch {
       toast.error('Failed to delete');
     }
@@ -102,7 +152,7 @@ export default function ExpensesPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-display font-bold text-foreground">Expenses</h2>
-          <p className="text-sm text-muted-foreground">Total: {formatCurrency(total)}</p>
+          <p className="text-sm text-muted-foreground">This month: {formatCurrency(total)}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -149,6 +199,10 @@ export default function ExpensesPage() {
                 <Label>Icon</Label>
                 <IconPicker value={form.icon} onChange={(icon) => setForm({ ...form, icon })} />
               </div>
+              <div>
+                <Label>Receipt (optional)</Label>
+                <ReceiptUpload value={form.attachmentUrl} onChange={(attachmentUrl) => setForm({ ...form, attachmentUrl })} />
+              </div>
               <Button onClick={handleAdd} disabled={saving} className="w-full">
                 {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                 Add Expense
@@ -158,36 +212,49 @@ export default function ExpensesPage() {
         </Dialog>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Search expenses..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
-      </div>
+      <Tabs defaultValue="month">
+        <TabsList>
+          <TabsTrigger value="month">This Month</TabsTrigger>
+          <TabsTrigger value="all">All Transactions</TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardContent className="p-2">
-          {filtered.length > 0 ? (
-            filtered.map((e) => (
-              <TransactionCard
-                key={e.id}
-                icon={e.icon}
-                name={e.name}
-                category={e.categoryName}
-                amount={e.amount}
-                date={e.date}
-                type="EXPENSE"
-                onDelete={() => handleDelete(e.id)}
-              />
-            ))
-          ) : (
-            <EmptyState title="No expenses" description="Add your first expense to start tracking your spending." />
-          )}
-        </CardContent>
-      </Card>
+        <TabsContent value="month" className="mt-4 space-y-4">
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search expenses..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Card>
+            <CardContent className="p-2">
+              {filtered.length > 0 ? (
+                filtered.map((e) => (
+                  <TransactionCard
+                    key={e.id}
+                    icon={e.icon}
+                    name={e.name}
+                    category={e.categoryName}
+                    amount={e.amount}
+                    date={e.date}
+                    type="EXPENSE"
+                    attachmentUrl={e.attachmentUrl}
+                    onDelete={() => handleDelete(e.id)}
+                  />
+                ))
+              ) : (
+                <EmptyState title="No expenses" description="Add your first expense to start tracking your spending." />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="all" className="mt-4">
+          <AllExpensesTab key={allTabKey} onDelete={handleDelete} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

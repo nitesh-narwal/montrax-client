@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ArrowUpRight, ArrowDownRight, Wallet, TrendingUp, Plus } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Wallet, TrendingUp, Plus, Clock } from 'lucide-react';
 import { StatCard } from '@/components/shared/StatCard';
 import { TransactionCard } from '@/components/shared/TransactionCard';
 import { BudgetProgressCard } from '@/components/shared/BudgetProgressCard';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import api from '@/lib/api';
-import type { DashboardData, BudgetGoal } from '@/types';
+import { formatCurrency, formatDate } from '@/lib/constants';
+import type { DashboardData, BudgetGoal, RecurringTransaction } from '@/types';
 import { toast } from 'sonner';
+import { cn, getErrorMessage } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import {
   Chart as ChartJS,
@@ -32,6 +35,7 @@ const CHART_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#06b6d4', '#e
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [budgets, setBudgets] = useState<BudgetGoal[]>([]);
+  const [recurring, setRecurring] = useState<RecurringTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const location = useLocation();
@@ -46,7 +50,7 @@ export default function DashboardPage() {
       console.log('Token present:', !!token);
 
       try {
-        const [dashRes, budgetRes] = await Promise.all([
+        const [dashRes, budgetRes, recurringRes] = await Promise.all([
           api.get('/dashboard').catch((err) => {
             console.error('Dashboard API error:', err.response?.status, err.response?.data || err.message);
             setError(`Dashboard: ${err.response?.status} - ${err.response?.data?.message || err.message}`);
@@ -56,15 +60,17 @@ export default function DashboardPage() {
             console.error('Budgets API error:', err.response?.status, err.response?.data || err.message);
             return null;
           }),
+          api.get('/api/recurring').catch(() => null),
         ]);
 
         console.log('Dashboard response:', dashRes?.data);
         console.log('Budgets response:', budgetRes?.data);
         if (dashRes) setData(dashRes.data);
         if (budgetRes) setBudgets(budgetRes.data || []);
-      } catch (err: any) {
+        if (recurringRes) setRecurring(recurringRes.data || []);
+      } catch (err) {
         console.error('Promise.all error:', err);
-        setError(err.message);
+        setError(getErrorMessage(err));
         toast.error('Failed to load dashboard');
       } finally {
         setLoading(false);
@@ -110,6 +116,14 @@ export default function DashboardPage() {
   };
 
   const alertBudgets = budgets.filter((b) => b.isOverBudget || b.isNearLimit);
+
+  const now = Date.now();
+  const upcomingRecurring = recurring
+    .filter((r) => r.isActive)
+    .map((r) => ({ ...r, daysUntil: Math.ceil((new Date(r.nextExecution).getTime() - now) / 86400000) }))
+    .filter((r) => r.daysUntil >= 0 && r.daysUntil <= 7)
+    .sort((a, b) => a.daysUntil - b.daysUntil)
+    .slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -183,6 +197,39 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Upcoming Recurring */}
+      {upcomingRecurring.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="font-display flex items-center gap-2">
+              <Clock className="w-4 h-4 text-primary" />
+              Upcoming in the Next 7 Days
+            </CardTitle>
+            <Link to="/recurring" className="text-xs text-primary hover:underline">View all</Link>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {upcomingRecurring.map((r) => (
+                <div key={r.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-lg shrink-0">{r.icon}</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{r.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {r.daysUntil === 0 ? 'Today' : `In ${r.daysUntil}d`} · {formatDate(r.nextExecution)}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className={cn('shrink-0', r.type === 'INCOME' ? 'text-income border-income/30' : 'text-expense border-expense/30')}>
+                    {r.type === 'INCOME' ? '+' : '-'}{formatCurrency(r.amount)}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Budget Alerts */}
       {alertBudgets.length > 0 && (

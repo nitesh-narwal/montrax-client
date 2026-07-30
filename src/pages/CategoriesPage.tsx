@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Loader2, Trash2 } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,9 @@ import { IconPicker } from '@/components/shared/IconPicker';
 import api from '@/lib/api';
 import type { Category } from '@/types';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/utils';
+
+const emptyForm = { name: '', icon: '🛒', type: 'EXPENSE' as 'EXPENSE' | 'INCOME' };
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -20,16 +23,15 @@ export default function CategoriesPage() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
-  const [form, setForm] = useState({ name: '', icon: '🛒', type: 'EXPENSE' as 'EXPENSE' | 'INCOME' });
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState(emptyForm);
 
   const fetchData = async () => {
-    console.log('=== Fetching Categories ===');
     try {
       const res = await api.get('/categories');
-      console.log('Categories response:', res.data);
       setCategories(res.data || []);
-    } catch (err: any) {
-      console.error('Categories error:', err.response?.status, err.response?.data);
+    } catch (err) {
+      console.error('Categories error:', getErrorMessage(err));
       toast.error('Failed to load categories');
     }
     finally { setLoading(false); }
@@ -37,16 +39,34 @@ export default function CategoriesPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const handleAdd = async () => {
+  const openCreateDialog = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+    setOpen(true);
+  };
+
+  const openEditDialog = (cat: Category) => {
+    setEditingId(cat.id);
+    setForm({ name: cat.name, icon: cat.icon, type: cat.type });
+    setOpen(true);
+  };
+
+  const handleSave = async () => {
     if (!form.name) { toast.error('Name is required'); return; }
     setSaving(true);
     try {
-      await api.post('/categories', form);
-      toast.success('Category added!');
+      if (editingId) {
+        await api.put(`/categories/${editingId}`, form);
+        toast.success('Category updated!');
+      } else {
+        await api.post('/categories', form);
+        toast.success('Category added!');
+      }
       setOpen(false);
-      setForm({ name: '', icon: '🛒', type: 'EXPENSE' });
+      setForm(emptyForm);
+      setEditingId(null);
       fetchData();
-    } catch (err: any) { toast.error(err.response?.data?.message || 'Failed'); }
+    } catch (err) { toast.error(getErrorMessage(err)); }
     finally { setSaving(false); }
   };
 
@@ -56,8 +76,8 @@ export default function CategoriesPage() {
       await api.delete(`/categories/${categoryId}`);
       toast.success('Category deleted!');
       fetchData();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to delete category');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to delete category'));
     }
     finally { setDeleting(null); }
   };
@@ -81,40 +101,50 @@ export default function CategoriesPage() {
                 </span>
               </div>
             </div>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-expense"
-                  disabled={deleting === cat.id}
-                >
-                  {deleting === cat.id ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-4 h-4" />
-                  )}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Category</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to delete "{cat.name}"? This action cannot be undone.
-                    Any transactions using this category may be affected.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => handleDelete(cat.id)}
-                    className="bg-expense hover:bg-expense/90"
+            <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-primary"
+                onClick={() => openEditDialog(cat)}
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-expense"
+                    disabled={deleting === cat.id}
                   >
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                    {deleting === cat.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Category</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete "{cat.name}"? This action cannot be undone.
+                      Any transactions using this category may be affected.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => handleDelete(cat.id)}
+                      className="bg-expense hover:bg-expense/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
         ))}
       </div>
@@ -127,10 +157,10 @@ export default function CategoriesPage() {
         <h2 className="text-2xl font-display font-bold text-foreground">Categories</h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="w-4 h-4" /> Add Category</Button>
+            <Button className="gap-2" onClick={openCreateDialog}><Plus className="w-4 h-4" /> Add Category</Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle className="font-display">Add Category</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle className="font-display">{editingId ? 'Edit' : 'Add'} Category</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div><Label>Name</Label><Input placeholder="Food & Dining" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
               <div>
@@ -147,8 +177,8 @@ export default function CategoriesPage() {
                 <Label>Icon</Label>
                 <IconPicker value={form.icon} onChange={(icon) => setForm({ ...form, icon })} initialCount={30} />
               </div>
-              <Button onClick={handleAdd} disabled={saving} className="w-full">
-                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Add Category
+              <Button onClick={handleSave} disabled={saving} className="w-full">
+                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}{editingId ? 'Save Changes' : 'Add Category'}
               </Button>
             </div>
           </DialogContent>

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import {
     BarChart3, Target, Brain, Building2, ArrowRight,
     IndianRupee, Shield, Zap, Check
@@ -43,6 +44,7 @@ export default function LandingPage() {
                         <span className="font-display font-bold text-lg text-foreground">Montrax</span>
                     </div>
                     <div className="flex items-center gap-2">
+                        <ThemeToggle />
                         <Link to="/login">
                             <Button variant="ghost">Login</Button>
                         </Link>

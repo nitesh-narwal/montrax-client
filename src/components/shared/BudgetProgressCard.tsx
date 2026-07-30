@@ -1,7 +1,6 @@
-import { Progress } from '@/components/ui/progress';
 import { formatCurrency } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Pencil, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface BudgetProgressCardProps {
@@ -11,12 +10,15 @@ interface BudgetProgressCardProps {
   percentageUsed: number;
   isOverBudget: boolean;
   isNearLimit: boolean;
+  isRecurring?: boolean;
+  alertThreshold?: number;
   onDelete?: () => void;
+  onEdit?: () => void;
 }
 
 export function BudgetProgressCard({
   categoryName, budgetAmount, spentAmount, percentageUsed,
-  isOverBudget, isNearLimit, onDelete
+  isOverBudget, isNearLimit, isRecurring, alertThreshold, onDelete, onEdit
 }: BudgetProgressCardProps) {
   const getColor = () => {
     if (isOverBudget) return 'bg-expense';
@@ -39,16 +41,24 @@ export function BudgetProgressCard({
         <div className="flex items-center gap-2">
           <span>{status.icon}</span>
           <h3 className="font-semibold text-foreground">{categoryName}</h3>
+          {isRecurring && (
+            <span title="Repeats monthly"><RefreshCw className="w-3 h-3 text-muted-foreground" /></span>
+          )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <span className={cn(
-            'text-xs px-2 py-0.5 rounded-full font-medium',
+            'text-xs px-2 py-0.5 rounded-full font-medium mr-1',
             isOverBudget ? 'bg-expense/10 text-expense' :
             isNearLimit ? 'bg-warning/10 text-warning' :
             'bg-income/10 text-income'
           )}>
             {status.label}
           </span>
+          {onEdit && (
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={onEdit}>
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+          )}
           {onDelete && (
             <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-expense" onClick={onDelete}>
               <Trash2 className="w-3.5 h-3.5" />
@@ -72,6 +82,7 @@ export function BudgetProgressCard({
       </div>
       <p className="text-xs text-muted-foreground">
         Remaining: {formatCurrency(Math.max(budgetAmount - spentAmount, 0))}
+        {alertThreshold != null && <> · Alerts at {alertThreshold}%</>}
       </p>
     </div>
   );

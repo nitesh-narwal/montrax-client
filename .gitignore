@@ -75,3 +75,8 @@ ehthumbs.db
 *.pid
 *.seed
 *.pid.lock
+
+graphify-out/
+
+.claude/
+.CLAUDE.md

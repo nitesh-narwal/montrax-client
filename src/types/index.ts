@@ -4,7 +4,13 @@ export interface User {
   fullname: string;
   email: string;
   profileImageUrl?: string;
+  role: 'USER' | 'ADMIN';
+  phoneNumber?: string;
+  isPhoneVerified: boolean;
+  authProvider: 'LOCAL' | 'GOOGLE';
+  notificationTime?: string | null;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface AuthResponse {
@@ -16,11 +22,65 @@ export interface RegisterData {
   fullname: string;
   email: string;
   password: string;
+  phoneNumber: string;
 }
 
 export interface LoginData {
   email: string;
   password: string;
+}
+
+// Phone OTP verification
+export interface OtpSendRequest {
+  phoneNumber: string;
+}
+
+export interface OtpVerifyRequest {
+  phoneNumber: string;
+  code: string;
+}
+
+export interface OtpResponse {
+  success: boolean;
+  message: string;
+}
+
+// Generic paginated response shape shared by /expences/paged, /incomes/paged,
+// /filter/paged, /api/bank/transactions, /api/admin/users
+export interface PagedResponse<T> {
+  content: T[];
+  currentPage: number;
+  totalPages: number;
+  totalElements: number;
+  size: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+// Admin
+export interface AdminUserSummary {
+  id: number;
+  fullname: string;
+  email: string;
+  role: 'USER' | 'ADMIN';
+  isActive: boolean;
+  isPhoneVerified: boolean;
+  createdAt: string;
+}
+
+export interface AdminStats {
+  totalUsers: number;
+  activeUsers: number;
+  phoneVerifiedUsers: number;
+  usersByRole: Record<string, number>;
+  [key: string]: number | Record<string, number>;
+}
+
+export interface AdminConfigItem {
+  key: string;
+  value: string;
+  category?: string;
+  description?: string;
 }
 
 // Category
@@ -49,6 +109,7 @@ export interface Expense {
   categoryId: number;
   amount: number;
   date: string;
+  attachmentUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,6 +120,7 @@ export interface ExpenseFormData {
   categoryId: number;
   amount: number;
   date: string;
+  attachmentUrl?: string | null;
 }
 
 // Income
@@ -70,6 +132,7 @@ export interface Income {
   categoryId: number;
   amount: number;
   date: string;
+  attachmentUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -80,6 +143,7 @@ export interface IncomeFormData {
   categoryId: number;
   amount: number;
   date: string;
+  attachmentUrl?: string | null;
 }
 
 // Dashboard
@@ -141,6 +205,28 @@ export interface BudgetFormData {
   amount: number;
   alertThreshold?: number;
   isRecurring?: boolean;
+}
+
+// Savings Goals
+export interface SavingsGoal {
+  id: number;
+  name: string;
+  icon: string;
+  targetAmount: number;
+  currentAmount: number;
+  remainingAmount: number;
+  percentageProgress: number;
+  targetDate: string | null;
+  status: 'ACTIVE' | 'COMPLETED';
+  isCompleted: boolean;
+  createdAt: string;
+}
+
+export interface SavingsGoalFormData {
+  name: string;
+  icon?: string;
+  targetAmount: number;
+  targetDate?: string | null;
 }
 
 // Recurring Transactions
@@ -251,17 +337,33 @@ export interface RemainingQueries {
   remaining: number;
 }
 
+export interface AiInsight {
+  id: string;
+  profileId: number;
+  insightType: 'SPENDING_ANALYSIS' | 'SAVINGS_STRATEGY' | 'FINANCIAL_HEALTH';
+  title: string;
+  description: string;
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  potentialSavings: number;
+  isRead: boolean;
+  isActionTaken: boolean;
+  createdAt: string;
+}
+
 // Bank Import
 export interface BankTransaction {
   id: number;
+  bankName: string;
   transactionDate: string;
   description: string;
+  referenceNumber?: string;
   amount: number;
   type: 'DEBIT' | 'CREDIT';
   balance: number;
   merchantName: string;
   suggestedCategory: string;
   categoryId: number | null;
+  categoryName?: string | null;
   isConverted: boolean;
 }
 
@@ -297,7 +399,7 @@ export interface Subscription {
   planName: string;
   startDate: string;
   endDate: string;
-  status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+  status: 'ACTIVE' | 'GRACE_PERIOD' | 'EXPIRED' | 'CANCELLED' | 'UPGRADED';
   autoRenew: boolean;
   daysRemaining: number;
   aiQueriesUsed: number;
@@ -313,6 +415,14 @@ export interface PaymentOrder {
   razorpayKeyId: string;
   planName: string;
   billingCycle: 'MONTHLY' | 'YEARLY';
+}
+
+export interface DataRetentionInfo {
+  retentionMonths: number;
+  isUnlimited: boolean;
+  nextCleanupCutoffDate: string | null;
+  recordsToBeDeleted: number;
+  message: string;
 }
 
 export interface PaymentHistory {

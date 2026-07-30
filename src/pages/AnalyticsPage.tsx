@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { StatCard } from '@/components/shared/StatCard';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { ArrowUpRight, ArrowDownRight, TrendingUp, Activity } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, TrendingUp, Activity, Flame, Trophy, CalendarRange } from 'lucide-react';
 import api from '@/lib/api';
+import { formatCurrency } from '@/lib/constants';
 import type { AnalyticsData } from '@/types';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/utils';
 import {
   Chart as ChartJS,
   ArcElement, Tooltip, Legend, CategoryScale, LinearScale,
@@ -19,10 +24,19 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointE
 
 const CHART_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444', '#ec4899'];
 
+const todayStr = () => new Date().toISOString().split('T')[0];
+const monthAgoStr = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return d.toISOString().split('T')[0];
+};
+
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('monthly');
+  const [customStart, setCustomStart] = useState(monthAgoStr());
+  const [customEnd, setCustomEnd] = useState(todayStr());
 
   const endpointMap: Record<string, string> = {
     weekly: '/api/analytics/weekly',
@@ -34,17 +48,66 @@ export default function AnalyticsPage() {
   const fetchData = async (p: string) => {
     setLoading(true);
     try {
-      const res = await api.get(endpointMap[p]);
+      const res = p === 'custom'
+        ? await api.get('/api/analytics/custom', { params: { startDate: customStart, endDate: customEnd } })
+        : await api.get(endpointMap[p]);
       setData(res.data);
-    } catch { toast.error('Failed to load analytics'); }
+    } catch (err) { toast.error(getErrorMessage(err, 'Failed to load analytics')); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(period); }, [period]);
+  useEffect(() => {
+    if (period !== 'custom') fetchData(period);
+  }, [period]);
+
+  const handleApplyCustomRange = () => {
+    if (!customStart || !customEnd) { toast.error('Pick a start and end date'); return; }
+    if (new Date(customStart) > new Date(customEnd)) { toast.error('Start date must be before end date'); return; }
+    const days = (new Date(customEnd).getTime() - new Date(customStart).getTime()) / 86400000;
+    if (days > 365) { toast.error('Range can be at most 365 days'); return; }
+    fetchData('custom');
+  };
 
   if (loading) return <LoadingSpinner />;
-  if (!data) return <EmptyState title="No analytics data" description="Start adding transactions to see analytics." />;
 
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-display font-bold text-foreground">Analytics</h2>
+
+      <Tabs value={period} onValueChange={setPeriod}>
+        <TabsList>
+          <TabsTrigger value="weekly">Week</TabsTrigger>
+          <TabsTrigger value="monthly">Month</TabsTrigger>
+          <TabsTrigger value="6months">6 Months</TabsTrigger>
+          <TabsTrigger value="yearly">Year</TabsTrigger>
+          <TabsTrigger value="custom" className="gap-1"><CalendarRange className="w-3.5 h-3.5" />Custom</TabsTrigger>
+        </TabsList>
+
+        {period === 'custom' && (
+          <div className="flex flex-wrap items-end gap-3 mt-4 p-4 bg-card rounded-xl border border-border">
+            <div>
+              <Label>Start Date</Label>
+              <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-40" />
+            </div>
+            <div>
+              <Label>End Date</Label>
+              <Input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="w-40" />
+            </div>
+            <Button onClick={handleApplyCustomRange}>Apply</Button>
+          </div>
+        )}
+      </Tabs>
+
+      {!data ? (
+        <EmptyState title="No analytics data" description="Start adding transactions to see analytics." />
+      ) : (
+        <AnalyticsBody data={data} />
+      )}
+    </div>
+  );
+}
+
+function AnalyticsBody({ data }: { data: AnalyticsData }) {
   const catLabels = Object.keys(data.categoryBreakdown);
   const catValues = Object.values(data.categoryBreakdown);
 
@@ -74,18 +137,7 @@ export default function AnalyticsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-display font-bold text-foreground">Analytics</h2>
-
-      <Tabs value={period} onValueChange={setPeriod}>
-        <TabsList>
-          <TabsTrigger value="weekly">Week</TabsTrigger>
-          <TabsTrigger value="monthly">Month</TabsTrigger>
-          <TabsTrigger value="6months">6 Months</TabsTrigger>
-          <TabsTrigger value="yearly">Year</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
+    <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Income" value={data.totalIncome} icon={ArrowUpRight} variant="income" />
         <StatCard title="Total Expense" value={data.totalExpense} icon={ArrowDownRight} variant="expense" />
@@ -93,11 +145,49 @@ export default function AnalyticsPage() {
         <StatCard title="Savings Rate" value={data.savingsRate} icon={Activity} variant="savings" isCurrency={false} />
       </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <Activity className="w-4 h-4 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Avg Daily Spending</p>
+              <p className="text-sm font-semibold text-foreground truncate">{formatCurrency(data.averageDailySpending)}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-expense/10 flex items-center justify-center shrink-0">
+              <Flame className="w-4 h-4 text-expense" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Highest Spending Day</p>
+              <p className="text-sm font-semibold text-foreground truncate">{formatCurrency(data.highestSpendingDay)}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-warning/10 flex items-center justify-center shrink-0">
+              <Trophy className="w-4 h-4 text-warning" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Top Category</p>
+              <p className="text-sm font-semibold text-foreground truncate">{data.topSpendingCategory || 'N/A'}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader><CardTitle className="font-display">Spending Trend</CardTitle></CardHeader>
           <CardContent>
-            <Line data={spendingLineData} options={{ responsive: true, plugins: { legend: { display: false } } }} />
+            {data.dailySpending.length > 0 ? (
+              <Line data={spendingLineData} options={{ responsive: true, plugins: { legend: { display: false } } }} />
+            ) : <p className="text-center text-muted-foreground py-8">No data for this range</p>}
           </CardContent>
         </Card>
         <Card>
@@ -120,6 +210,6 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </>
   );
 }

@@ -13,9 +13,10 @@ import {
 import { formatCurrency } from '@/lib/constants';
 import { useStore } from '@/store/useStore';
 import api from '@/lib/api';
-import type { SpendingSummary, Anomaly, AiTips, FinancialHealth, RemainingQueries } from '@/types';
+import type { SpendingSummary, Anomaly, AiTips, FinancialHealth, RemainingQueries, SpendingPrediction, AiInsight } from '@/types';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, getErrorMessage } from '@/lib/utils';
+import { isAxiosError } from 'axios';
 
 // Helper to parse tips from AI response into array
 const parseTips = (tipsText: string): string[] => {
@@ -117,7 +118,7 @@ export default function InsightsPage() {
   const { isPremiumFeatureAllowed } = useStore();
   const [summary, setSummary] = useState<SpendingSummary | null>(null);
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
-  const [predictions, setPredictions] = useState<any>(null);
+  const [predictions, setPredictions] = useState<SpendingPrediction | null>(null);
   const [tips, setTips] = useState<AiTips | null>(null);
   const [health, setHealth] = useState<FinancialHealth | null>(null);
   const [remaining, setRemaining] = useState<RemainingQueries | null>(null);
@@ -133,7 +134,7 @@ export default function InsightsPage() {
     type InsightPriority = 'HIGH' | 'MEDIUM' | 'LOW' | '';
     type InsightType = 'SPENDING_ANALYSIS' | 'SAVINGS_STRATEGY' | 'FINANCIAL_HEALTH' | '';
 
-    const [insights, setInsights] = useState<any[]>([]);
+    const [insights, setInsights] = useState<AiInsight[]>([]);
     const [selectedPriority, setSelectedPriority] = useState<InsightPriority>('');
     const [selectedType, setSelectedType] = useState<InsightType>('');
 
@@ -168,8 +169,8 @@ export default function InsightsPage() {
       toast.success('Financial health updated!');
       const remRes = await api.get('/api/ai/remaining-queries').catch(() => null);
       if (remRes) setRemaining(remRes.data);
-    } catch (err: any) {
-      const message = err.response?.data?.message || err.response?.data?.error || '';
+    } catch (err) {
+      const message = getErrorMessage(err, '');
       if (message.includes('rate') || message.includes('busy')) {
         toast.error('AI service is busy. Try again later.');
       } else {
@@ -233,9 +234,9 @@ export default function InsightsPage() {
       setQuestion('');
       const remRes = await api.get('/api/ai/remaining-queries').catch(() => null);
       if (remRes) setRemaining(remRes.data);
-    } catch (err: any) {
-      const status = err.response?.status;
-      const message = err.response?.data?.message || err.response?.data?.error || '';
+    } catch (err) {
+      const status = isAxiosError(err) ? err.response?.status : undefined;
+      const message = getErrorMessage(err, '');
 
       if (status === 403) {
         toast.error('Upgrade to use AI features');

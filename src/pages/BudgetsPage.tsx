@@ -3,6 +3,7 @@ import { Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BudgetProgressCard } from '@/components/shared/BudgetProgressCard';
@@ -11,6 +12,10 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import api from '@/lib/api';
 import type { BudgetGoal, Category } from '@/types';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/utils';
+import { useOpenOnQueryParam } from '@/hooks/useOpenOnQueryParam';
+
+const emptyForm = { categoryId: '', amount: '', alertThreshold: '80', isRecurring: false };
 
 export default function BudgetsPage() {
   const [budgets, setBudgets] = useState<BudgetGoal[]>([]);
@@ -18,7 +23,8 @@ export default function BudgetsPage() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ categoryId: '', amount: '', alertThreshold: '80', isRecurring: false });
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState(emptyForm);
 
   const fetchData = async () => {
     try {
@@ -31,21 +37,42 @@ export default function BudgetsPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const handleAdd = async () => {
+  const openCreateDialog = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+    setOpen(true);
+  };
+
+  useOpenOnQueryParam(openCreateDialog);
+
+  const openEditDialog = (budget: BudgetGoal) => {
+    setEditingId(budget.id);
+    setForm({
+      categoryId: budget.categoryId ? String(budget.categoryId) : '',
+      amount: String(budget.budgetAmount),
+      alertThreshold: String(budget.alertThreshold),
+      isRecurring: budget.isRecurring,
+    });
+    setOpen(true);
+  };
+
+  const handleSave = async () => {
     if (!form.amount) { toast.error('Amount is required'); return; }
     setSaving(true);
     try {
+      // POST both creates and updates (upsert keyed by categoryId + month/year)
       await api.post('/api/budgets', {
         categoryId: form.categoryId ? parseInt(form.categoryId) : null,
         amount: parseFloat(form.amount),
         alertThreshold: parseInt(form.alertThreshold),
         isRecurring: form.isRecurring,
       });
-      toast.success('Budget created!');
+      toast.success(editingId ? 'Budget updated!' : 'Budget created!');
       setOpen(false);
-      setForm({ categoryId: '', amount: '', alertThreshold: '80', isRecurring: false });
+      setForm(emptyForm);
+      setEditingId(null);
       fetchData();
-    } catch (err: any) { toast.error(err.response?.data?.message || 'Failed'); }
+    } catch (err) { toast.error(getErrorMessage(err)); }
     finally { setSaving(false); }
   };
 
@@ -67,13 +94,13 @@ export default function BudgetsPage() {
           <p className="text-sm text-muted-foreground">{monthYear}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> Add Budget</Button></DialogTrigger>
+          <DialogTrigger asChild><Button className="gap-2" onClick={openCreateDialog}><Plus className="w-4 h-4" /> Add Budget</Button></DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle className="font-display">Add Budget Goal</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle className="font-display">{editingId ? 'Edit' : 'Add'} Budget Goal</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div>
                 <Label>Category (leave empty for Overall)</Label>
-                <Select value={form.categoryId} onValueChange={(v) => setForm({ ...form, categoryId: v })}>
+                <Select value={form.categoryId} onValueChange={(v) => setForm({ ...form, categoryId: v })} disabled={!!editingId}>
                   <SelectTrigger><SelectValue placeholder="Overall Budget" /></SelectTrigger>
                   <SelectContent>
                     {categories.map((c) => (<SelectItem key={c.id} value={String(c.id)}>{c.icon} {c.name}</SelectItem>))}
@@ -82,8 +109,15 @@ export default function BudgetsPage() {
               </div>
               <div><Label>Amount (₹)</Label><Input type="number" placeholder="10000" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
               <div><Label>Alert Threshold (%)</Label><Input type="number" placeholder="80" value={form.alertThreshold} onChange={(e) => setForm({ ...form, alertThreshold: e.target.value })} /></div>
-              <Button onClick={handleAdd} disabled={saving} className="w-full">
-                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Create Budget
+              <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                <div>
+                  <Label className="mb-0">Recurring</Label>
+                  <p className="text-xs text-muted-foreground">Auto-copy this budget to next month</p>
+                </div>
+                <Switch checked={form.isRecurring} onCheckedChange={(v) => setForm({ ...form, isRecurring: v })} />
+              </div>
+              <Button onClick={handleSave} disabled={saving} className="w-full">
+                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}{editingId ? 'Save Changes' : 'Create Budget'}
               </Button>
             </div>
           </DialogContent>
@@ -93,7 +127,7 @@ export default function BudgetsPage() {
       {budgets.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {budgets.map((b) => (
-            <BudgetProgressCard key={b.id} {...b} onDelete={() => handleDelete(b.id)} />
+            <BudgetProgressCard key={b.id} {...b} onDelete={() => handleDelete(b.id)} onEdit={() => openEditDialog(b)} />
           ))}
         </div>
       ) : (

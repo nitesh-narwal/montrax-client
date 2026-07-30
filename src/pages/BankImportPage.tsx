@@ -1,19 +1,87 @@
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { Upload, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { PageControls } from '@/components/shared/PageControls';
 import { BANK_OPTIONS, formatCurrency, formatDate } from '@/lib/constants';
 import { useStore } from '@/store/useStore';
 import api from '@/lib/api';
-import type { BankTransaction, ImportUsage, Category } from '@/types';
+import type { BankTransaction, ImportUsage, Category, PagedResponse } from '@/types';
 import { toast } from 'sonner';
 import { Lock } from 'lucide-react';
+import { getErrorMessage } from '@/lib/utils';
+
+function BankHistoryTab() {
+  const [page, setPage] = useState(0);
+  const [data, setData] = useState<PagedResponse<BankTransaction> | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchPage = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/api/bank/transactions', { params: { page, size: 20, sort: 'transactionDate,desc' } });
+      setData(res.data);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to load import history'));
+    } finally {
+      setLoading(false);
+    }
+  }, [page]);
+
+  useEffect(() => { fetchPage(); }, [fetchPage]);
+
+  if (loading) return <LoadingSpinner />;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="p-2">
+          {data && data.content.length > 0 ? (
+            <div className="divide-y divide-border">
+              {data.content.map((tx) => (
+                <div key={tx.id} className="flex items-center justify-between py-3 px-2">
+                  <div className="flex-1 min-w-0 mr-2">
+                    <p className="text-sm font-semibold text-foreground truncate">{tx.description}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDate(tx.transactionDate)} · {tx.bankName}
+                      {tx.categoryName && <> · {tx.categoryName}</>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-sm font-bold whitespace-nowrap ${tx.type === 'CREDIT' ? 'text-income' : 'text-expense'}`}>
+                      {tx.type === 'CREDIT' ? '+' : '-'}{formatCurrency(Math.abs(tx.amount))}
+                    </span>
+                    <Badge variant={tx.isConverted ? 'default' : 'outline'} className="text-xs">
+                      {tx.isConverted ? 'Converted' : 'Pending'}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState title="No import history" description="Imported bank transactions will show up here." />
+          )}
+        </CardContent>
+      </Card>
+      {data && (
+        <PageControls
+          currentPage={data.currentPage}
+          totalPages={data.totalPages}
+          hasNext={data.hasNext}
+          hasPrevious={data.hasPrevious}
+          onPageChange={setPage}
+        />
+      )}
+    </div>
+  );
+}
 
 export default function BankImportPage() {
   const { isPremiumFeatureAllowed } = useStore();
@@ -66,8 +134,8 @@ export default function BankImportPage() {
       } else {
         toast.error(res.data.message || 'No valid transactions found in the CSV file');
       }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Import failed');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Import failed'));
     }
     finally { setImporting(false); }
   };
@@ -77,8 +145,8 @@ export default function BankImportPage() {
       await api.post(`/api/bank/transactions/${txId}/categorize?categoryId=${categoryId}`);
       toast.success('Transaction converted and added to your records!');
       setTransactions((p) => p.filter((t) => t.id !== txId));
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to categorize');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to categorize'));
     }
   };
 
@@ -88,8 +156,8 @@ export default function BankImportPage() {
       await api.delete(`/api/bank/transactions/${txId}`);
       toast.success('Transaction deleted');
       setTransactions((p) => p.filter((t) => t.id !== txId));
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to delete');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to delete'));
     } finally {
       setDeletingId(null);
     }
@@ -101,8 +169,8 @@ export default function BankImportPage() {
       const res = await api.delete('/api/bank/transactions/unconverted');
       toast.success(res.data.message || `Deleted ${res.data.deletedCount} transactions`);
       setTransactions([]);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to delete');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to delete'));
     } finally {
       setDeletingAll(false);
       setDeleteAllDialogOpen(false);
@@ -137,6 +205,14 @@ export default function BankImportPage() {
           </CardContent>
         </Card>
       )}
+
+      <Tabs defaultValue="import">
+        <TabsList>
+          <TabsTrigger value="import">Import</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="import" className="mt-4 space-y-6">
 
       <Card>
         <CardHeader><CardTitle className="font-display">Import Transactions</CardTitle></CardHeader>
@@ -231,6 +307,13 @@ export default function BankImportPage() {
           </CardContent>
         </Card>
       )}
+
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-4">
+          <BankHistoryTab />
+        </TabsContent>
+      </Tabs>
 
       {/* Delete All Dialog */}
       <Dialog open={deleteAllDialogOpen} onOpenChange={setDeleteAllDialogOpen}>

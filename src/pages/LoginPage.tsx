@@ -8,9 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { IndianRupee, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
-import api from '@/lib/api';
+import api, { API_BASE_URL } from '@/lib/api';
 import { toast } from 'sonner';
 import AuthLayout from '@/components/layouts/AuthLayout';
+import { getErrorMessage } from '@/lib/utils';
+import { GoogleSignInButton } from '@/components/shared/GoogleSignInButton';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -36,8 +38,14 @@ export default function LoginPage() {
       setAuth(res.data.token, res.data.user);
       toast.success('Welcome back!');
       navigate('/dashboard');
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Invalid credentials');
+    } catch (err) {
+      const message = getErrorMessage(err, 'Invalid credentials');
+      if (message.toLowerCase().includes('phone verification required')) {
+        toast.error('Verify your phone number to finish signing in.');
+        navigate('/verify-otp', { state: { phoneNumber: '' } });
+      } else {
+        toast.error(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -88,6 +96,14 @@ export default function LoginPage() {
           {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
           Sign In
         </Button>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+          </div>
+        </div>
+        <GoogleSignInButton apiBaseUrl={API_BASE_URL} />
       </form>
 
       <p className="text-center text-sm text-muted-foreground mt-4 bg-card/80 backdrop-blur-sm rounded-lg py-2">
