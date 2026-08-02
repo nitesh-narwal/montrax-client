@@ -10,7 +10,7 @@ interface TransactionFilterBarProps {
 }
 
 export function TransactionFilterBar({ filters, onChange }: TransactionFilterBarProps) {
-  const hasActiveFilters = !!(filters.keyword || filters.startDate || filters.endDate);
+  const hasActiveFilters = !!(filters.keyword || filters.startDate || filters.endDate || filters.tag);
 
   return (
     <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 p-3 bg-card rounded-xl border border-border">
@@ -38,6 +38,13 @@ export function TransactionFilterBar({ filters, onChange }: TransactionFilterBar
         className="w-40"
         aria-label="End date"
       />
+      <Input
+        placeholder="Tag..."
+        value={filters.tag}
+        onChange={(e) => onChange({ ...filters, tag: e.target.value })}
+        className="w-32"
+        aria-label="Filter by tag"
+      />
       <Select value={filters.sortField} onValueChange={(v) => onChange({ ...filters, sortField: v as TransactionFilters['sortField'] })}>
         <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
         <SelectContent>
@@ -61,7 +68,7 @@ export function TransactionFilterBar({ filters, onChange }: TransactionFilterBar
           variant="ghost"
           size="sm"
           className="text-muted-foreground gap-1"
-          onClick={() => onChange({ keyword: '', startDate: '', endDate: '', sortField: filters.sortField, sortOrder: filters.sortOrder })}
+          onClick={() => onChange({ keyword: '', startDate: '', endDate: '', tag: '', sortField: filters.sortField, sortOrder: filters.sortOrder })}
         >
           <X className="w-3.5 h-3.5" />Clear
         </Button>

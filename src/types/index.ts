@@ -112,6 +112,8 @@ export interface Expense {
   attachmentUrl?: string | null;
   createdAt: string;
   updatedAt: string;
+  tags?: string[];
+  splits?: Split[];
 }
 
 export interface ExpenseFormData {
@@ -135,6 +137,7 @@ export interface Income {
   attachmentUrl?: string | null;
   createdAt: string;
   updatedAt: string;
+  tags?: string[];
 }
 
 export interface IncomeFormData {
@@ -230,6 +233,32 @@ export interface SavingsGoalFormData {
 }
 
 // Recurring Transactions
+export interface Split {
+  id: number;
+  participantName: string;
+  shareAmount: number;
+  isSettled: boolean;
+  settledAt: string | null;
+}
+
+export interface Account {
+  id: number;
+  name: string;
+  type: 'BANK' | 'CASH' | 'WALLET' | 'CREDIT_CARD' | 'INVESTMENT';
+  icon: string;
+  balance: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NetWorthSnapshot {
+  id: number;
+  profileId: number;
+  snapshotDate: string;
+  totalNetWorth: number;
+}
+
 export interface RecurringTransaction {
   id: number;
   name: string;

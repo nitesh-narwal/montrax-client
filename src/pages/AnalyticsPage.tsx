@@ -4,15 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatCard } from '@/components/shared/StatCard';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { ArrowUpRight, ArrowDownRight, TrendingUp, Activity, Flame, Trophy, CalendarRange } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, TrendingUp, Activity, Flame, Trophy, CalendarRange, Download, Loader2 } from 'lucide-react';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/constants';
 import type { AnalyticsData } from '@/types';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/utils';
+import { downloadBlob } from '@/lib/download';
 import {
   Chart as ChartJS,
   ArcElement, Tooltip, Legend, CategoryScale, LinearScale,
@@ -30,6 +32,33 @@ const monthAgoStr = () => {
   d.setDate(d.getDate() - 30);
   return d.toISOString().split('T')[0];
 };
+const toDateStr = (d: Date) => d.toISOString().split('T')[0];
+
+/** Mirrors AnalyticsService's date-range logic per period, so the downloaded report matches what's on screen. */
+function getRangeForPeriod(period: string, customStart: string, customEnd: string): { startDate: string; endDate: string } {
+  const today = new Date();
+  switch (period) {
+    case 'weekly': {
+      const start = new Date(today);
+      start.setDate(start.getDate() - 6);
+      return { startDate: toDateStr(start), endDate: toDateStr(today) };
+    }
+    case 'monthly': {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { startDate: toDateStr(start), endDate: toDateStr(today) };
+    }
+    case '6months': {
+      const start = new Date(today.getFullYear(), today.getMonth() - 6, 1);
+      return { startDate: toDateStr(start), endDate: toDateStr(today) };
+    }
+    case 'yearly': {
+      const start = new Date(today.getFullYear(), 0, 1);
+      return { startDate: toDateStr(start), endDate: toDateStr(today) };
+    }
+    default:
+      return { startDate: customStart, endDate: customEnd };
+  }
+}
 
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
@@ -37,6 +66,8 @@ export default function AnalyticsPage() {
   const [period, setPeriod] = useState('monthly');
   const [customStart, setCustomStart] = useState(monthAgoStr());
   const [customEnd, setCustomEnd] = useState(todayStr());
+  const [reportFormat, setReportFormat] = useState<'pdf' | 'excel'>('pdf');
+  const [downloading, setDownloading] = useState(false);
 
   const endpointMap: Record<string, string> = {
     weekly: '/api/analytics/weekly',
@@ -68,11 +99,43 @@ export default function AnalyticsPage() {
     fetchData('custom');
   };
 
+  const handleDownloadReport = async () => {
+    const { startDate, endDate } = getRangeForPeriod(period, customStart, customEnd);
+    setDownloading(true);
+    try {
+      const res = await api.get('/api/reports/export', {
+        params: { format: reportFormat, startDate, endDate },
+        responseType: 'blob',
+      });
+      const extension = reportFormat === 'pdf' ? 'pdf' : 'xlsx';
+      downloadBlob(res.data, `report-${startDate}-to-${endDate}.${extension}`);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to download report'));
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (loading) return <LoadingSpinner />;
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-display font-bold text-foreground">Analytics</h2>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-2xl font-display font-bold text-foreground">Analytics</h2>
+        <div className="flex items-center gap-2">
+          <Select value={reportFormat} onValueChange={(v) => setReportFormat(v as 'pdf' | 'excel')}>
+            <SelectTrigger className="w-24 h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pdf">PDF</SelectItem>
+              <SelectItem value="excel">Excel</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={handleDownloadReport} disabled={downloading} className="gap-2">
+            {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Download Report
+          </Button>
+        </div>
+      </div>
 
       <Tabs value={period} onValueChange={setPeriod}>
         <TabsList>

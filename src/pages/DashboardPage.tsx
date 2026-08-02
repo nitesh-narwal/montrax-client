@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ArrowUpRight, ArrowDownRight, Wallet, TrendingUp, Plus, Clock } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Wallet, TrendingUp, Plus, Clock, HandCoins } from 'lucide-react';
 import { StatCard } from '@/components/shared/StatCard';
 import { TransactionCard } from '@/components/shared/TransactionCard';
 import { BudgetProgressCard } from '@/components/shared/BudgetProgressCard';
@@ -36,6 +36,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [budgets, setBudgets] = useState<BudgetGoal[]>([]);
   const [recurring, setRecurring] = useState<RecurringTransaction[]>([]);
+  const [splitSummary, setSplitSummary] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const location = useLocation();
@@ -46,7 +47,7 @@ export default function DashboardPage() {
       setError(null);
 
       try {
-        const [dashRes, budgetRes, recurringRes] = await Promise.all([
+        const [dashRes, budgetRes, recurringRes, splitRes] = await Promise.all([
           api.get('/dashboard').catch((err) => {
             console.error('Dashboard API error:', err.response?.status, err.response?.data || err.message);
             setError(`Dashboard: ${err.response?.status} - ${err.response?.data?.message || err.message}`);
@@ -57,11 +58,13 @@ export default function DashboardPage() {
             return null;
           }),
           api.get('/api/recurring').catch(() => null),
+          api.get('/expences/splits/summary').catch(() => null),
         ]);
 
         if (dashRes) setData(dashRes.data);
         if (budgetRes) setBudgets(budgetRes.data || []);
         if (recurringRes) setRecurring(recurringRes.data || []);
+        if (splitRes) setSplitSummary(splitRes.data || {});
       } catch (err) {
         console.error('Promise.all error:', err);
         setError(getErrorMessage(err));
@@ -218,6 +221,28 @@ export default function DashboardPage() {
                   <Badge variant="outline" className={cn('shrink-0', r.type === 'INCOME' ? 'text-income border-income/30' : 'text-expense border-expense/30')}>
                     {r.type === 'INCOME' ? '+' : '-'}{formatCurrency(r.amount)}
                   </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Who Owes You */}
+      {Object.keys(splitSummary).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-display flex items-center gap-2">
+              <HandCoins className="w-4 h-4 text-primary" />
+              Who Owes You
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {Object.entries(splitSummary).map(([name, amount]) => (
+                <div key={name} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <span className="text-sm font-medium text-foreground">{name}</span>
+                  <Badge variant="outline" className="text-income border-income/30">{formatCurrency(amount)}</Badge>
                 </div>
               ))}
             </div>

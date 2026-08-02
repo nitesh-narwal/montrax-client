@@ -18,7 +18,7 @@ import { useTransactionSearch } from '@/hooks/useTransactionSearch';
 import { useOpenOnQueryParam } from '@/hooks/useOpenOnQueryParam';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/constants';
-import type { Income, Category } from '@/types';
+import type { Income, Category, Account } from '@/types';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/utils';
 
@@ -43,6 +43,7 @@ function AllIncomesTab({ onDelete }: { onDelete: (id: number) => void }) {
                     date={i.date}
                     type="INCOME"
                     attachmentUrl={i.attachmentUrl}
+                    tags={i.tags}
                     onDelete={() => onDelete(i.id)}
                   />
                 ))
@@ -72,24 +73,27 @@ function AllIncomesTab({ onDelete }: { onDelete: (id: number) => void }) {
 export default function IncomesPage() {
   const [incomes, setIncomes] = useState<Income[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [allTabKey, setAllTabKey] = useState(0);
-  const [form, setForm] = useState<{ name: string; amount: string; categoryId: string; icon: string; date: string; attachmentUrl: string | null }>({ name: '', amount: '', categoryId: '', icon: '💰', date: new Date().toISOString().split('T')[0], attachmentUrl: null });
+  const [form, setForm] = useState<{ name: string; amount: string; categoryId: string; icon: string; date: string; attachmentUrl: string | null; tags: string; accountId: string }>({ name: '', amount: '', categoryId: '', icon: '💰', date: new Date().toISOString().split('T')[0], attachmentUrl: null, tags: '', accountId: '' });
 
   useOpenOnQueryParam(() => setOpen(true));
 
   const fetchData = async () => {
     try {
-      const [incRes, catRes] = await Promise.all([
+      const [incRes, catRes, accRes] = await Promise.all([
         api.get('/incomes').catch(() => ({ data: [] })),
         api.get('/categories').catch(() => ({ data: [] })),
+        api.get('/api/accounts').catch(() => ({ data: [] })),
       ]);
       setIncomes(incRes.data || []);
       const incomeCategories = (catRes.data || []).filter((c: Category) => c.type === 'INCOME');
       setCategories(incomeCategories);
+      setAccounts(accRes.data || []);
     } catch (err) {
       console.error('FetchData error:', err);
       toast.error('Failed to load incomes');
@@ -104,10 +108,19 @@ export default function IncomesPage() {
     if (!form.name || !form.amount || !form.categoryId) { toast.error('Fill all fields'); return; }
     setSaving(true);
     try {
-      await api.post('/incomes', { name: form.name, amount: parseFloat(form.amount), categoryId: parseInt(form.categoryId), icon: form.icon, date: form.date, attachmentUrl: form.attachmentUrl });
+      await api.post('/incomes', {
+        name: form.name,
+        amount: parseFloat(form.amount),
+        categoryId: parseInt(form.categoryId),
+        icon: form.icon,
+        date: form.date,
+        attachmentUrl: form.attachmentUrl,
+        tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
+        accountId: form.accountId ? parseInt(form.accountId) : null,
+      });
       toast.success('Income added!');
       setOpen(false);
-      setForm({ name: '', amount: '', categoryId: '', icon: '💰', date: new Date().toISOString().split('T')[0], attachmentUrl: null });
+      setForm({ name: '', amount: '', categoryId: '', icon: '💰', date: new Date().toISOString().split('T')[0], attachmentUrl: null, tags: '', accountId: '' });
       fetchData();
       setAllTabKey((k) => k + 1);
     } catch (err) { toast.error(getErrorMessage(err)); }
@@ -170,6 +183,23 @@ export default function IncomesPage() {
                 <Label>Receipt (optional)</Label>
                 <ReceiptUpload value={form.attachmentUrl} onChange={(attachmentUrl) => setForm({ ...form, attachmentUrl })} />
               </div>
+              <div>
+                <Label>Tags (optional, comma-separated)</Label>
+                <Input placeholder="bonus, freelance" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
+              </div>
+              {accounts.length > 0 && (
+                <div>
+                  <Label>Account (optional)</Label>
+                  <Select value={form.accountId} onValueChange={(v) => setForm({ ...form, accountId: v })}>
+                    <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                    <SelectContent>
+                      {accounts.map((a) => (
+                        <SelectItem key={a.id} value={String(a.id)}>{a.icon} {a.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <Button onClick={handleAdd} disabled={saving} className="w-full">
                 {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Add Income
               </Button>
@@ -191,7 +221,7 @@ export default function IncomesPage() {
           </div>
           <Card><CardContent className="p-2">
             {filtered.length > 0 ? filtered.map((i) => (
-              <TransactionCard key={i.id} icon={i.icon} name={i.name} category={i.categoryName} amount={i.amount} date={i.date} type="INCOME" attachmentUrl={i.attachmentUrl} onDelete={() => handleDelete(i.id)} />
+              <TransactionCard key={i.id} icon={i.icon} name={i.name} category={i.categoryName} amount={i.amount} date={i.date} type="INCOME" attachmentUrl={i.attachmentUrl} tags={i.tags} onDelete={() => handleDelete(i.id)} />
             )) : <EmptyState title="No incomes" description="Add your first income to start tracking." />}
           </CardContent></Card>
         </TabsContent>

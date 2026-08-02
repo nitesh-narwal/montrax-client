@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Receipt, Wallet, Tags, Target, RefreshCw,
-  BarChart3, Brain, Building2, Crown, User, LogOut, IndianRupee, Shield, PiggyBank
+  BarChart3, Brain, Building2, Crown, User, LogOut, IndianRupee, Shield, PiggyBank, Landmark
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { cn } from '@/lib/utils';
@@ -10,6 +10,7 @@ const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/expenses', label: 'Expenses', icon: Receipt },
   { path: '/incomes', label: 'Incomes', icon: Wallet },
+  { path: '/accounts', label: 'Accounts', icon: Landmark },
   { path: '/categories', label: 'Categories', icon: Tags },
   { path: '/budgets', label: 'Budgets', icon: Target },
   { path: '/savings-goals', label: 'Savings Goals', icon: PiggyBank },

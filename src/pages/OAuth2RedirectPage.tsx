@@ -8,8 +8,11 @@ import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 
 /**
  * Landing spot for the Google OAuth2 redirect flow. The backend sends the browser
- * here with either ?token=<jwt> (success) or ?error=<message> (failure) after the
- * user approves/denies on Google's consent screen.
+ * here with either ?code=<one-time exchange code> (success) or ?error=<message>
+ * (failure) after the user approves/denies on Google's consent screen. The code
+ * is single-use and expires in 60s - it's immediately swapped for the real JWT
+ * via a POST body so the token itself never appears in a URL, browser history,
+ * or access logs.
  */
 export default function OAuth2RedirectPage() {
   const [searchParams] = useSearchParams();
@@ -21,7 +24,7 @@ export default function OAuth2RedirectPage() {
     if (ranRef.current) return;
     ranRef.current = true;
 
-    const token = searchParams.get('token');
+    const code = searchParams.get('code');
     const error = searchParams.get('error');
 
     if (error) {
@@ -30,18 +33,21 @@ export default function OAuth2RedirectPage() {
       return;
     }
 
-    if (!token) {
-      toast.error('No token received from Google sign-in');
+    if (!code) {
+      toast.error('No code received from Google sign-in');
       navigate('/login', { replace: true });
       return;
     }
 
-    localStorage.setItem('token', token);
-    api.get('/profile')
+    api.post('/oauth2/exchange', { code })
       .then((res) => {
-        setAuth(token, res.data);
-        toast.success('Signed in with Google!');
-        navigate('/dashboard', { replace: true });
+        const token = res.data.token;
+        localStorage.setItem('token', token);
+        return api.get('/profile').then((profileRes) => {
+          setAuth(token, profileRes.data);
+          toast.success('Signed in with Google!');
+          navigate('/dashboard', { replace: true });
+        });
       })
       .catch((err) => {
         toast.error(getErrorMessage(err, 'Failed to complete Google sign-in'));

@@ -8,12 +8,13 @@ export interface TransactionFilters {
   keyword: string;
   startDate: string;
   endDate: string;
+  tag: string;
   sortField: 'date' | 'amount' | 'name';
   sortOrder: 'asc' | 'desc';
 }
 
 export const emptyTransactionFilters: TransactionFilters = {
-  keyword: '', startDate: '', endDate: '', sortField: 'date', sortOrder: 'desc',
+  keyword: '', startDate: '', endDate: '', tag: '', sortField: 'date', sortOrder: 'desc',
 };
 
 const PAGE_SIZE = 20;
@@ -30,7 +31,7 @@ export function useTransactionSearch<T>(kind: 'expence' | 'income') {
   const [data, setData] = useState<PagedResponse<T> | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const isFiltered = !!(filters.keyword || filters.startDate || filters.endDate);
+  const isFiltered = !!(filters.keyword || filters.startDate || filters.endDate || filters.tag);
   const basePath = kind === 'expence' ? '/expences' : '/incomes';
 
   const setFilters = (next: TransactionFilters) => {
@@ -48,6 +49,7 @@ export function useTransactionSearch<T>(kind: 'expence' | 'income') {
           startDate: filters.startDate || undefined,
           endDate: filters.endDate || undefined,
           keyword: filters.keyword || undefined,
+          tag: filters.tag || undefined,
           sortField: filters.sortField,
           sortOrder: filters.sortOrder,
         }, { params: { page, size: PAGE_SIZE, sort } })

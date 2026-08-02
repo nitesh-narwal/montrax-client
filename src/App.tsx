@@ -21,6 +21,7 @@ const OAuth2RedirectPage = lazy(() => import("./pages/OAuth2RedirectPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const ExpensesPage = lazy(() => import("./pages/ExpensesPage"));
 const IncomesPage = lazy(() => import("./pages/IncomesPage"));
+const AccountsPage = lazy(() => import("./pages/AccountsPage"));
 const CategoriesPage = lazy(() => import("./pages/CategoriesPage"));
 const BudgetsPage = lazy(() => import("./pages/BudgetsPage"));
 const SavingsGoalsPage = lazy(() => import("./pages/SavingsGoalsPage"));
@@ -65,6 +66,7 @@ const App = () => (
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/expenses" element={<ExpensesPage />} />
                 <Route path="/incomes" element={<IncomesPage />} />
+                <Route path="/accounts" element={<AccountsPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/budgets" element={<BudgetsPage />} />
                 <Route path="/savings-goals" element={<SavingsGoalsPage />} />
